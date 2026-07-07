@@ -14,7 +14,8 @@ namespace Il2CppDumper
         public static ulong DecodeAdr(ulong pc, byte[] inst)
         {
             var bin = inst.HexToBin();
-            var uint64 = string.Concat(bin.AsSpan(8, 19), bin.AsSpan(1, 2));
+            // net48 compat: string.Concat(ReadOnlySpan<char>) overload doesn't exist; use Substring.
+            var uint64 = string.Concat(bin.Substring(8, 19), bin.Substring(1, 2));
             uint64 = uint64.PadLeft(64, uint64[0]);
             return pc + Convert.ToUInt64(uint64, 2);
         }
@@ -23,7 +24,8 @@ namespace Il2CppDumper
         {
             pc &= 0xFFFFFFFFFFFFF000;
             var bin = inst.HexToBin();
-            var uint64 = string.Concat(bin.AsSpan(8, 19), bin.AsSpan(1, 2), new string('0', 12));
+            // net48 compat: string.Concat(ReadOnlySpan<char>) overload doesn't exist; use Substring.
+            var uint64 = string.Concat(bin.Substring(8, 19), bin.Substring(1, 2), new string('0', 12));
             uint64 = uint64.PadLeft(64, uint64[0]);
             return pc + Convert.ToUInt64(uint64, 2);
         }

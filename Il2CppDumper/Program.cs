@@ -8,7 +8,9 @@ namespace Il2CppDumper
 {
     class Program
     {
-        private static Config config;
+        // Made internal so BatchEntry (headless entry for DevXUnityRewrite TestRunner)
+        // can reuse Init/Dump without duplicating logic. No behavior change.
+        internal static Config config;
 
         [STAThread]
         static void Main(string[] args)
@@ -116,7 +118,7 @@ namespace Il2CppDumper
             Console.WriteLine($"usage: {AppDomain.CurrentDomain.FriendlyName} <executable-file> <global-metadata> <output-directory>");
         }
 
-        private static bool Init(string il2cppPath, string metadataPath, out Metadata metadata, out Il2Cpp il2Cpp)
+        internal static bool Init(string il2cppPath, string metadataPath, out Metadata metadata, out Il2Cpp il2Cpp)
         {
             Console.WriteLine("Initializing metadata...");
             var metadataBytes = File.ReadAllBytes(metadataPath);
@@ -251,7 +253,7 @@ namespace Il2CppDumper
             return true;
         }
 
-        private static void Dump(Metadata metadata, Il2Cpp il2Cpp, string outputDir)
+        internal static void Dump(Metadata metadata, Il2Cpp il2Cpp, string outputDir)
         {
             Console.WriteLine("Dumping...");
             var executor = new Il2CppExecutor(metadata, il2Cpp);

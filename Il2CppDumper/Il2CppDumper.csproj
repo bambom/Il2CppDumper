@@ -1,18 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Il2CppDumper 参考工程 (MIT, Copyright © Perfare 2016-2024).
+    作为 DevXUnityRewrite 的结构层交叉验证 oracle + 独立 CLI 产出器编入解决方案。
+    原样保留 Perfare 的业务源码；仅做 TFM/net48 适配 + 新增 headless 入口 (BatchEntry.cs)。
+    不被重写版 Main/Tools 运行时依赖；仅供 TestRunner 场景与人工 CLI 调用。
+    详见 DevXUnityRewrite/doc/MODULE_IL2CPP_TO_CSHARP.md §15。
+  -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <!-- Directory.Build.props 统一 net48/x64/latest；这里显式声明以兼容独立构建。 -->
+    <TargetFramework>net48</TargetFramework>
+    <Platforms>x64</Platforms>
+    <LangVersion>latest</LangVersion>
     <Version>1.0.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <Copyright>Copyright © Perfare 2016-2024</Copyright>
     <DebugType>embedded</DebugType>
-	<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <RootNamespace>Il2CppDumper</RootNamespace>
+    <AssemblyName>Il2CppDumper</AssemblyName>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Mono.Cecil" Version="0.11.4" />
+    <!-- System.Text.Json: used by Program.cs (config) + StructGenerator (disabled via config).
+         Pinned to 9.x to avoid the known high-severity advisories in 8.0.0. -->
+    <PackageReference Include="System.Text.Json" Version="9.0.0" />
+    <!-- net48 polyfills for C# features used by Il2CppDumper's .NET 6 source:
+         PolySharp = source generator for System.Range/System.Index/init (Range operator `..`),
+         System.Memory = ReadOnlySpan<T> for string.Concat(ReadOnlySpan<char>). -->
+    <PackageReference Include="PolySharp" Version="1.15.0" />
+    <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,5 +80,19 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <!--
+    Directory.Build.props 把 OutputPath 重定向到 artifacts\bin\, 但 NuGet 的 copy-local
+    步骤在某些 SDK + 公共输出目录组合下会把依赖 DLL 落到中间输出(而非 OutputPath)。
+    显式把 NuGet 解析出的 copy-local 引用(含传递依赖)复制到公共 bin, 保证
+    Il2CppDumper.exe 能运行时加载 Mono.Cecil / System.Text.Json / System.Memory 等。
+    ReferenceCopyLocalPaths 是 NuGet restore 之后由 ResolvePackageDependencies / 
+    RunResolveCopyLocalItems 产出的标准 item。
+  -->
+  <Target Name="CopyNuGetReferencesToCommonBin" AfterTargets="Build">
+    <Copy SourceFiles="@(ReferenceCopyLocalPaths)"
+          DestinationFolder="$(OutputPath)"
+          Condition="Exists('%(Identity)')" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
