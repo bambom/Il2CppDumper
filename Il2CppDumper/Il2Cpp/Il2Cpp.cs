@@ -164,7 +164,10 @@ namespace Il2CppDumper
             {
                 customAttributeGenerators = MapVATR<ulong>(pCodeRegistration.customAttributeGenerators, pCodeRegistration.customAttributeCount);
             }
-            if (Version > 16 && Version < 27)
+            // [轮A] 对齐基线 Il2Cpp.cs:226-227 — 对所有版本填充 metadataUsages(无 < 27 guard)。
+            // 基线证明 v27+ 同样可经 pMetadataRegistration.metadataUsages 填充,这一数据是 v27+
+            // 惰性间接指针 slot 的 native VA 数组,翻译器据此把 metadata usage 解析回具体对象。
+            if (Version > 16)
             {
                 metadataUsages = MapVATR<ulong>(pMetadataRegistration.metadataUsages, metadataUsagesCount);
             }
