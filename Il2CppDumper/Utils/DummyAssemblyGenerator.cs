@@ -382,6 +382,14 @@ namespace Il2CppDumper
                     }
                 }
             }
+            // IL2CPP metadata keeps explicit-interface method names and method flags,
+            // but it does not expose the ECMA-335 MethodImpl rows directly. Rebuild
+            // those rows after every method exists so decompilers can recover real
+            // explicit implementations instead of escaped private helper methods.
+            foreach (var typeDefinition in typeDefinitionDic.Values)
+            {
+                ExplicitInterfaceOverrideMapper.Apply(typeDefinition);
+            }
             //第三遍，添加CustomAttribute
             if (il2Cpp.Version > 20)
             {
