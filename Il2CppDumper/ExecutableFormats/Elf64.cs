@@ -14,6 +14,7 @@ namespace Il2CppDumper
         private Elf64_Sym[] symbolTable;
         private Elf64_Shdr[] sectionTable;
         private Elf64_Phdr pt_dynamic;
+        private readonly Dictionary<ulong, string> externalSymbols = new();
 
         public Elf64(Stream stream) : base(stream)
         {
@@ -35,6 +36,7 @@ namespace Il2CppDumper
                 FixedDynamicSection();
             }
             ReadSymbol();
+            ReadPltSymbols();
             if (!IsDumped)
             {
                 RelocationProcessing();
@@ -127,6 +129,10 @@ namespace Il2CppDumper
             return false;
         }
 
+        public override string ResolveExternalSymbol(ulong virtualAddress)
+            => externalSymbols.TryGetValue(virtualAddress, out string name)
+                ? name : null;
+
         private void ReadSymbol()
         {
             try
@@ -177,6 +183,87 @@ namespace Il2CppDumper
             catch
             {
                 // ignored
+            }
+        }
+
+        private void ReadPltSymbols()
+        {
+            externalSymbols.Clear();
+            try
+            {
+                if (elfHeader.e_machine != EM_AARCH64 ||
+                    symbolTable == null || symbolTable.Length == 0 ||
+                    elfHeader.e_shoff == 0 || elfHeader.e_shnum == 0)
+                    return;
+
+                sectionTable = ReadClassArray<Elf64_Shdr>(
+                    elfHeader.e_shoff, elfHeader.e_shnum);
+                if (sectionTable == null || sectionTable.Length == 0 ||
+                    elfHeader.e_shstrndx >= sectionTable.Length)
+                    return;
+                ulong sectionNameOffset =
+                    sectionTable[elfHeader.e_shstrndx].sh_offset;
+                Elf64_Shdr plt = null;
+                Elf64_Shdr relaPlt = null;
+                foreach (Elf64_Shdr section in sectionTable)
+                {
+                    string name = ReadStringToNull(
+                        sectionNameOffset + section.sh_name);
+                    if (string.Equals(name, ".plt",
+                            StringComparison.Ordinal))
+                        plt = section;
+                    else if (string.Equals(name, ".rela.plt",
+                                 StringComparison.Ordinal))
+                        relaPlt = section;
+                }
+                if (plt == null || relaPlt == null ||
+                    relaPlt.sh_entsize == 0 ||
+                    relaPlt.sh_size % relaPlt.sh_entsize != 0)
+                    return;
+
+                Elf64_Rela[] relocations = ReadClassArray<Elf64_Rela>(
+                    relaPlt.sh_offset,
+                    relaPlt.sh_size / relaPlt.sh_entsize);
+                const ulong entrySize = 16;
+                ulong entriesSize = unchecked(
+                    (ulong)relocations.Length) * entrySize;
+                if (plt.sh_size < entriesSize)
+                    return;
+                ulong headerSize = plt.sh_size - entriesSize;
+                if (headerSize == 0 || headerSize % entrySize != 0)
+                    return;
+
+                ulong dynstrOffset = MapVATR(dynamicSection.First(
+                    item => item.d_tag == DT_STRTAB).d_un);
+                var ambiguous = new HashSet<ulong>();
+                for (int index = 0; index < relocations.Length; index++)
+                {
+                    ulong symbolIndex = relocations[index].r_info >> 32;
+                    if (symbolIndex >= unchecked((ulong)symbolTable.Length))
+                        continue;
+                    string name = ReadStringToNull(dynstrOffset +
+                        symbolTable[(int)symbolIndex].st_name);
+                    if (string.IsNullOrWhiteSpace(name))
+                        continue;
+                    ulong stub = plt.sh_addr + headerSize +
+                        unchecked((ulong)index) * entrySize;
+                    if (ambiguous.Contains(stub))
+                        continue;
+                    if (externalSymbols.TryGetValue(stub,
+                            out string existing) &&
+                        !string.Equals(existing, name,
+                            StringComparison.Ordinal))
+                    {
+                        externalSymbols.Remove(stub);
+                        ambiguous.Add(stub);
+                        continue;
+                    }
+                    externalSymbols[stub] = name;
+                }
+            }
+            catch
+            {
+                externalSymbols.Clear();
             }
         }
 

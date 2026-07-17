@@ -40,6 +40,12 @@ namespace Il2CppDumper
         public abstract SectionHelper GetSectionHelper(int methodCount, int typeDefinitionsCount, int imageCount);
         public abstract bool CheckDump();
 
+        /// <summary>Resolves an executable-format external-call stub to its
+        /// structured import symbol. Unsupported formats and ambiguous stubs
+        /// fail closed.</summary>
+        public virtual string ResolveExternalSymbol(ulong virtualAddress) =>
+            null;
+
         protected Il2Cpp(Stream stream) : base(stream) { }
 
         public void SetProperties(double version, long metadataUsagesCount)
